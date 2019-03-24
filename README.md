@@ -6,25 +6,50 @@ DNS-over-QUIC to UDP proxy and client implementation.
 
 ## License
 
-This code is released under Apache License 2.0. You can find terms and conditions in the LICENSE file.
+This code is released under Apache License 2.0. You can find terms and
+conditions in the LICENSE file.
 
 ## Protocol compatibility
 
-The DNS-over-QUIC implementation follows [draft-huitema-quic-dnsoquic-06](https://tools.ietf.org/html/draft-huitema-quic-dnsoquic-06).
+The DNS-over-QUIC implementation follows
+[draft-huitema-quic-dnsoquic-06](https://tools.ietf.org/html/draft-huitema-quic-dnsoquic-06).
 
-The QUIC protocol compatibility depends on the [quic-go](https:///github.com/lucas-clemente/quic-go) library.
+The QUIC protocol compatibility depends on the
+[quic-go](https:///github.com/lucas-clemente/quic-go) library.
 
-## Examples
+## Getting started
+
+Build the DoQ proxy and testing client.
 
 ```
-$ ./proxy -cert cert.pem -key key.pem -backend 8.8.4.4:53
-ts=2019-03-24T10:31:32.408891Z msg="listening for clients" addr=127.0.0.1:784
+go build ./cmd/proxy
+go build ./cmd/client
 ```
 
+Generate testing key and self-signed certificate for the proxy server.
+
 ```
-$ ./client ns1.com DNSKEY ns1.com AAAA ns1.com MX
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out key.pem
+openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" -key key.pem -out cert.pem
 ```
 
+Start the proxy. By default, the server loads the TLS key and certificate from
+the files generated above, will use 8.8.4.4 (Google Public DNS) as a backend
+server, and will listen on UDP port 784 (experimental port from the draft). Use
+command line options to modify the default behavior. Notice the use of the
+default port requries starting the proxy as superuser.
+
+```
+sudo ./proxy
+```
+
+Query the proxy using the testing utility. The client establishes a QUIC session
+to the server and sends each query via a dedicated stream. The replies are printed
+in the order of completion:
+
+```
+./client ns1.com A ns1.com AAAA
+```
 ```
 ;; opcode: QUERY, status: NOERROR, id: 25849
 ;; flags: qr rd ra; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
@@ -36,22 +61,6 @@ $ ./client ns1.com DNSKEY ns1.com AAAA ns1.com MX
 ns1.com.	195	IN	AAAA	2606:4700:10::6814:31b6
 ns1.com.	195	IN	AAAA	2606:4700:10::6814:30b6
 ns1.com.	195	IN	RRSIG	AAAA 13 2 200 20190325121641 20190323121641 44688 ns1.com. m17G7sGkXNhBiKINI2LuQLvUL0Qb+l6LMUmKSoVo2TP5sw3Yd27L44QOZhVU1GS//tD1e6YVOVsMrW3arlk/bQ==
-
-;; ADDITIONAL SECTION:
-
-;; OPT PSEUDOSECTION:
-; EDNS: version 0; flags: do; udp: 512
-
-;; opcode: QUERY, status: NOERROR, id: 43577
-;; flags: qr rd ra ad; QUERY: 1, ANSWER: 3, AUTHORITY: 0, ADDITIONAL: 1
-
-;; QUESTION SECTION:
-;ns1.com.	IN	 DNSKEY
-
-;; ANSWER SECTION:
-ns1.com.	3599	IN	DNSKEY	257 3 13 t+4DPP+MFZ0Cr7gAXiDYv6HTyXzq/O2ESVRLc/ysuh5xBXKIsjsj5baV1HzhBNo2F7mbsevsEo0/6UEL8+JBmA==
-ns1.com.	3599	IN	DNSKEY	256 3 13 pxEUulkf8UZtE9fy2+4wJwM44xncypgGVps4hE4kQGA5TuC/XJPoKBX6e3B/QL9AmwFCgyFeC4uRNxoqxK0xOg==
-ns1.com.	3599	IN	RRSIG	DNSKEY 13 2 3600 20190330133723 20190322133723 48553 ns1.com. gRqjGGeM7dW0dGNaicDPBizH+bHoeI9Q0UeS8v7hfgHGjqZkMDKxmuNc7T3jwCBmT+xVgeeBnRlU2/1fspfFcg==
 
 ;; ADDITIONAL SECTION:
 
@@ -75,13 +84,25 @@ ns1.com.	25	IN	RRSIG	A 13 2 26 20190325121645 20190323121645 44688 ns1.com. xJK5
 ; EDNS: version 0; flags: do; udp: 512
 ```
 
+# Troubleshooting
+
+Note that this is an experimental code built on top of an experimental protocol.
+
+The server and client in this repository use the same QUIC library
+and therefore they should be compatible. However, if a different client is
+used, the handshake may fail on the version negotiation. We suggest to check
+packet capture first when the client is unable to connect.
+
+The proxy also logs information about accepted connections and streams which
+can be used to inspect the sequence of events:
+
 ```
+$ sudo ./proxy -listen 127.0.0.1:784 -cert cert.pem -key key.pem -udp_backend 8.8.4.4:53
+ts=2019-03-24T10:31:32.408891Z msg="listening for clients" addr=127.0.0.1:784
 ts=2019-03-24T12:16:45.048583Z client=127.0.0.1:52212 msg="session accepted"
 ts=2019-03-24T12:16:45.050231Z client=127.0.0.1:52212 stream_id=0 msg="stream accepted"
 ts=2019-03-24T12:16:45.050278Z client=127.0.0.1:52212 stream_id=4 msg="stream accepted"
-ts=2019-03-24T12:16:45.050303Z client=127.0.0.1:52212 stream_id=8 msg="stream accepted"
 ts=2019-03-24T12:16:45.091568Z client=127.0.0.1:52212 stream_id=4 msg="stream closed"
 ts=2019-03-24T12:16:45.104623Z client=127.0.0.1:52212 stream_id=0 msg="stream closed"
-ts=2019-03-24T12:16:45.10976Z client=127.0.0.1:52212 stream_id=8 msg="stream closed"
 ts=2019-03-24T12:16:45.110261Z client=127.0.0.1:52212 msg="session closed"
 ```
