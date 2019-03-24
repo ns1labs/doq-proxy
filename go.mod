@@ -1,4 +1,4 @@
-module github.com/DNS-OARC/flamethrower/quic/proxy
+module github.com/ns1/doq-proxy
 
 go 1.12
 
