@@ -1,3 +1,7 @@
 # binaries
 /client
 /proxy
+
+# testing certs
+/cert.pem
+/key.pem
