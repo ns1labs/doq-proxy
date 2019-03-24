@@ -33,8 +33,8 @@ func loop(l log.Logger) error {
 	)
 
 	flag.StringVar(&addr, "listen", "127.0.0.1:784", "UDP address to listen on.")
-	flag.StringVar(&tlsCert, "cert", "", "TLS certificate path.")
-	flag.StringVar(&tlsKey, "key", "", "TLS key path.")
+	flag.StringVar(&tlsCert, "cert", "cert.pem", "TLS certificate path.")
+	flag.StringVar(&tlsKey, "key", "key.pem", "TLS key path.")
 	flag.StringVar(&udpBackend, "udp_backend", "8.8.4.4:53", "UDP of backend server.")
 
 	flag.Parse()
