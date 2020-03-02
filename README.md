@@ -30,7 +30,7 @@ go build ./cmd/client
 Generate testing key and self-signed certificate for the proxy server.
 
 ```
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -out key.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out key.pem
 openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" -key key.pem -out cert.pem
 ```
 
