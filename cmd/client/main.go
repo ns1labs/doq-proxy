@@ -53,14 +53,14 @@ func main() {
 
 	tls := tls.Config{
 		InsecureSkipVerify: true,
+		NextProtos:         []string{"dq"},
 	}
-
 	session, err := quic.DialAddr(server, &tls, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to connect to the server: %s\n", err)
 		os.Exit(1)
 	}
-	defer session.Close()
+	defer session.CloseWithError(0, "")
 
 	print := make(chan string)
 
