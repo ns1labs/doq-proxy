@@ -1,5 +1,4 @@
 # DNS-over-QUIC to UDP Proxy
-> This project is in [maintenance status](https://github.com/ns1/community/blob/master/project_status/MAINTENANCE.md).
 
 DNS-over-QUIC to UDP proxy and client implementation.
 
@@ -85,7 +84,7 @@ ns1.com.	25	IN	RRSIG	A 13 2 26 20190325121645 20190323121645 44688 ns1.com. xJK5
 ; EDNS: version 0; flags: do; udp: 512
 ```
 
-# Troubleshooting
+## Troubleshooting
 
 Note that this is an experimental code built on top of an experimental protocol.
 
@@ -108,6 +107,8 @@ ts=2019-03-24T12:16:45.104623Z client=127.0.0.1:52212 stream_id=0 msg="stream cl
 ts=2019-03-24T12:16:45.110261Z client=127.0.0.1:52212 msg="session closed"
 ```
 
-Contributions
----
+## Contributing
+
+This project is [maintained](https://github.com/ns1/community/blob/master/project_status/MAINTENANCE.md).
+
 Pull Requests and issues are welcome. See the [NS1 Contribution Guidelines](https://github.com/ns1/community) for more information.
