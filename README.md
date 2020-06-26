@@ -12,7 +12,7 @@ conditions in the LICENSE file.
 ## Protocol compatibility
 
 The DNS-over-QUIC implementation follows
-[draft-huitema-quic-dnsoquic-06](https://tools.ietf.org/html/draft-huitema-quic-dnsoquic-06).
+[draft-huitema-dprive-dnsoquic-00](https://tools.ietf.org/html/draft-huitema-dprive-dnsoquic-00).
 
 The QUIC protocol compatibility depends on the
 [quic-go](https:///github.com/lucas-clemente/quic-go) library.
