@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/tls"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/go-kit/kit/log"
 	quic "github.com/lucas-clemente/quic-go"
-	"github.com/pkg/errors"
 )
 
 func main() {
@@ -41,7 +41,7 @@ func loop(l log.Logger) error {
 
 	cert, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 	if err != nil {
-		return errors.Wrap(err, "load certificate")
+		return fmt.Errorf("load certificate: %w", err)
 	}
 
 	tls := tls.Config{
@@ -52,7 +52,7 @@ func loop(l log.Logger) error {
 
 	listener, err := quic.ListenAddr(addr, &tls, &conf)
 	if err != nil {
-		return errors.Wrap(err, "listen")
+		return fmt.Errorf("listen: %w", err)
 	}
 	defer listener.Close()
 
@@ -64,7 +64,7 @@ func loop(l log.Logger) error {
 		session, err := listener.Accept()
 		if err != nil {
 			wg.Wait()
-			return errors.Wrap(err, "accept connection")
+			return fmt.Errorf("accept connection: %w", err)
 		}
 
 		l := log.With(l, "client", session.RemoteAddr())
@@ -110,26 +110,29 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 
 	data, err := ioutil.ReadAll(stream)
 	if err != nil {
-		return errors.Wrap(err, "read query")
+		return fmt.Errorf("read query: %w", err)
 	}
 
 	conn, err := net.Dial("udp", udpBackend)
 	if err != nil {
-		return errors.Wrap(err, "connect to backend")
+		return fmt.Errorf("connect to backend: %w", err)
 	}
 
 	_, err = conn.Write(data)
 	if err != nil {
-		return errors.Wrap(err, "send query to backend")
+		return fmt.Errorf("send query to backend: %w", err)
 	}
 
 	buf := make([]byte, 4096)
 	size, err := conn.Read(buf)
 	if err != nil {
-		return errors.Wrap(err, "read response from backend")
+		return fmt.Errorf("read response from backend: %w", err)
 	}
 	buf = buf[:size]
 
 	_, err = stream.Write(buf)
-	return errors.Wrap(err, "send response")
+	if err != nil {
+		return fmt.Errorf("send response: %w", err)
+	}
+	return nil
 }

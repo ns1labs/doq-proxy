@@ -10,7 +10,6 @@ import (
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/miekg/dns"
-	"github.com/pkg/errors"
 )
 
 type Query struct {
@@ -93,7 +92,7 @@ func main() {
 func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns.Msg, error) {
 	stream, err := session.OpenStream()
 	if err != nil {
-		return nil, errors.Wrap(err, "open stream")
+		return nil, fmt.Errorf("open stream: %w", err)
 	}
 
 	msg := dns.Msg{}
@@ -103,23 +102,23 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns
 	wire, err := msg.Pack()
 	if err != nil {
 		stream.Close()
-		return nil, errors.Wrap(err, "pack query")
+		return nil, fmt.Errorf("pack query: %w", err)
 	}
 
 	_, err = stream.Write(wire)
 	stream.Close()
 	if err != nil {
-		return nil, errors.Wrap(err, "send query")
+		return nil, fmt.Errorf("send query: %w", err)
 	}
 
 	rwire, err := ioutil.ReadAll(stream)
 	if err != nil {
-		return nil, errors.Wrap(err, "receive response")
+		return nil, fmt.Errorf("receive response: %w", err)
 	}
 
 	err = msg.Unpack(rwire)
 	if err != nil {
-		return nil, errors.Wrap(err, "decode response")
+		return nil, fmt.Errorf("decode response: %w", err)
 	}
 
 	return &msg, nil
