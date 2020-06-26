@@ -132,7 +132,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBa
 		}()
 	}
 
-	session.CloseWithError(0, "")
+	session.CloseWithError(0, "") // TODO: Is this how the session should be closed?
 	wg.Done()
 	l.Log("msg", "session closed")
 }

@@ -60,7 +60,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to connect to the server: %s\n", err)
 		os.Exit(1)
 	}
-	defer session.CloseWithError(0, "")
+	defer session.CloseWithError(0, "") // TODO: Is this how the session should be closed?
 
 	print := make(chan string)
 
