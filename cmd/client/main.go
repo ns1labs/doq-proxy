@@ -30,7 +30,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&server, "server", "127.0.0.1:784", "DNS-over-QUIC server to use.")
+	flag.StringVar(&server, "server", "127.0.0.1:8853", "DNS-over-QUIC server to use.")
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
 	flag.Parse()
@@ -53,7 +53,7 @@ func main() {
 
 	tls := tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{"dq"},
+		NextProtos:         []string{"doq-i02"},
 	}
 	session, err := quic.DialAddr(server, &tls, nil)
 	if err != nil {

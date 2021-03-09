@@ -12,7 +12,7 @@ conditions in the LICENSE file.
 ## Protocol compatibility
 
 The DNS-over-QUIC implementation follows
-[draft-huitema-dprive-dnsoquic-00](https://tools.ietf.org/html/draft-huitema-dprive-dnsoquic-00).
+[draft-ietf-dprive-dnsoquic-02](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
 
 The QUIC protocol compatibility depends on the
 [quic-go](https:///github.com/lucas-clemente/quic-go) library.
@@ -35,9 +35,9 @@ openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltNam
 
 Start the proxy. By default, the server loads the TLS key and certificate from
 the files generated above, will use 8.8.4.4 (Google Public DNS) as a backend
-server, and will listen on UDP port 784 (experimental port from the draft). Use
-command line options to modify the default behavior. Notice the use of the
-default port requries starting the proxy as superuser.
+server, and will listen on UDP port 8853. Use command line options to modify
+the default behavior. Notice the use of the default port requries starting the
+proxy as superuser.
 
 ```
 sudo ./proxy

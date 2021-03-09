@@ -65,7 +65,7 @@ func loop(l log.Logger, ctx context.Context) error {
 		udpBackend string
 	)
 
-	flag.StringVar(&addr, "listen", "127.0.0.1:784", "UDP address to listen on.")
+	flag.StringVar(&addr, "listen", "127.0.0.1:8853", "UDP address to listen on.")
 	flag.StringVar(&tlsCert, "cert", "cert.pem", "TLS certificate path.")
 	flag.StringVar(&tlsKey, "key", "key.pem", "TLS key path.")
 	flag.StringVar(&udpBackend, "udp_backend", "8.8.4.4:53", "UDP of backend server.")
@@ -79,7 +79,7 @@ func loop(l log.Logger, ctx context.Context) error {
 
 	tls := tls.Config{
 		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"dq"},
+		NextProtos:   []string{"doq-i02"},
 	}
 
 	listener, err := quic.ListenAddr(addr, &tls, nil)
