@@ -112,7 +112,21 @@ func loop(l log.Logger, ctx context.Context) error {
 func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBackend string) {
 	l.Log("msg", "session accepted")
 
-	wg := sync.WaitGroup{}
+	var (
+		err error
+		wg sync.WaitGroup = sync.WaitGroup{}
+	)
+
+	defer func() {
+		msg := ""
+		if err != nil {
+			msg = err.Error()
+		}
+		session.CloseWithError(0, msg)
+
+		l.Log("msg", "session closed")
+	}()
+
 	for {
 		stream, err := session.AcceptStream(ctx)
 		if err != nil {
@@ -124,17 +138,18 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBa
 
 		wg.Add(1)
 		go func() {
-			err := handleStream(stream, udpBackend)
-			if err != nil {
+			defer func() {
+				wg.Done()
+				l.Log("msg", "stream closed")
+			}()
+
+			if err := handleStream(stream, udpBackend); err != nil {
 				l.Log("msg", "stream failure", "err", err)
 			}
-			l.Log("msg", "stream closed")
 		}()
 	}
 
-	session.CloseWithError(0, "") // TODO: Is this how the session should be closed?
-	wg.Done()
-	l.Log("msg", "session closed")
+	wg.Wait()
 }
 
 func handleStream(stream quic.Stream, udpBackend string) error {
