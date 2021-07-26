@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-kit/kit/log"
 	quic "github.com/lucas-clemente/quic-go"
+	"github.com/miekg/dns"
 	"github.com/oklog/run"
 )
 
@@ -170,33 +171,62 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 	if iderr != nil {
 		panic("generating random id failed: " + iderr.Error())
 	}
-	binary.BigEndian.PutUint16(msg, uint16(id))
 
-	conn, err := net.Dial("udp", udpBackend)
+	query := dns.Msg{}
+	err = query.Unpack(msg)
 	if err != nil {
-		return fmt.Errorf("connect to backend: %w", err)
+		return fmt.Errorf("could not decode query: %w", err)
 	}
+	switch query.Question[0].Qtype {
+	case dns.TypeAXFR, dns.TypeIXFR:
+		conn, err := net.Dial("tcp", udpBackend)
+		if err != nil {
+			return fmt.Errorf("connect to TCP backend: %w", err)
+		}
+		binary.BigEndian.PutUint16(data[2:], uint16(id))
+		_, err = conn.Write(data)
+		if err != nil {
+			return fmt.Errorf("send query to TCP backend: %w", err)
+		}
+		buf := make([]byte, 4096)
+		size, err := conn.Read(buf)
+		if err != nil {
+			return fmt.Errorf("read response from TCP backend: %w", err)
+		}
+		buf = buf[:size]
+		binary.BigEndian.PutUint16(buf[2:], uint16(0))
+		_, err = stream.Write(buf)
+		if err != nil {
+			return fmt.Errorf("send response: %w", err)
+		}
+	default:
+		conn, err := net.Dial("udp", udpBackend)
+		if err != nil {
+			return fmt.Errorf("connect to UDP backend: %w", err)
+		}
 
-	_, err = conn.Write(msg)
-	if err != nil {
-		return fmt.Errorf("send query to backend: %w", err)
-	}
+		binary.BigEndian.PutUint16(msg, uint16(id))
+		_, err = conn.Write(msg)
+		if err != nil {
+			return fmt.Errorf("send query to UDP backend: %w", err)
+		}
 
-	buf := make([]byte, 4096)
-	size, err := conn.Read(buf)
-	if err != nil {
-		return fmt.Errorf("read response from backend: %w", err)
-	}
-	buf = buf[:size]
+		buf := make([]byte, 4096)
+		size, err := conn.Read(buf)
+		if err != nil {
+			return fmt.Errorf("read response from UDP backend: %w", err)
+		}
+		buf = buf[:size]
 
-	bundle := make([]byte, 2+len(buf))
-	binary.BigEndian.PutUint16(bundle, uint16(len(buf)))
-	copy(bundle[2:], buf)
-	binary.BigEndian.PutUint16(bundle[2:], uint16(0))
+		bundle := make([]byte, 2+len(buf))
+		binary.BigEndian.PutUint16(bundle, uint16(len(buf)))
+		copy(bundle[2:], buf)
+		binary.BigEndian.PutUint16(bundle[2:], uint16(0))
 
-	_, err = stream.Write(bundle)
-	if err != nil {
-		return fmt.Errorf("send response: %w", err)
+		_, err = stream.Write(bundle)
+		if err != nil {
+			return fmt.Errorf("send response: %w", err)
+		}
 	}
 	return nil
 }
