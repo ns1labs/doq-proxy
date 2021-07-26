@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -51,9 +52,13 @@ func main() {
 		queries = append(queries, Query{qname, qtype})
 	}
 
+	// TODO: make user explicitly request this!!!
+	w, err := os.OpenFile("tls-secrets.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+
 	tls := tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{"doq-i02"},
+		NextProtos:         []string{"doq-i03"},
+		KeyLogWriter:       w,
 	}
 	session, err := quic.DialAddr(server, &tls, nil)
 	if err != nil {
@@ -99,13 +104,17 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns
 	msg.SetQuestion(query.Name, query.Type)
 	msg.RecursionDesired = recursion
 	msg.SetEdns0(4096, dnssec)
+	msg.Id = 0
 	wire, err := msg.Pack()
 	if err != nil {
 		stream.Close()
 		return nil, fmt.Errorf("pack query: %w", err)
 	}
 
-	_, err = stream.Write(wire)
+	bundle := make([]byte, 2+len(wire))
+	binary.BigEndian.PutUint16(bundle, uint16(len(wire)))
+	copy(bundle[2:], wire)
+	_, err = stream.Write(bundle)
 	stream.Close()
 	if err != nil {
 		return nil, fmt.Errorf("send query: %w", err)
@@ -116,7 +125,11 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns
 		return nil, fmt.Errorf("receive response: %w", err)
 	}
 
-	err = msg.Unpack(rwire)
+	len := binary.BigEndian.Uint16(rwire)
+	rmsg := make([]byte, len)
+	copy(rmsg, rwire[2:])
+
+	err = msg.Unpack(rmsg)
 	if err != nil {
 		return nil, fmt.Errorf("decode response: %w", err)
 	}

@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/tls"
+	"encoding/binary"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -79,7 +81,7 @@ func loop(l log.Logger, ctx context.Context) error {
 
 	tls := tls.Config{
 		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"doq-i02"},
+		NextProtos:   []string{"doq-i03"},
 	}
 
 	listener, err := quic.ListenAddr(addr, &tls, nil)
@@ -160,12 +162,22 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 		return fmt.Errorf("read query: %w", err)
 	}
 
+	length := binary.BigEndian.Uint16(data)
+	msg := make([]byte, length)
+	copy(msg, data[2:])
+	var id uint16
+	iderr := binary.Read(rand.Reader, binary.BigEndian, &id)
+	if iderr != nil {
+		panic("generating random id failed: " + iderr.Error())
+	}
+	binary.BigEndian.PutUint16(msg, uint16(id))
+
 	conn, err := net.Dial("udp", udpBackend)
 	if err != nil {
 		return fmt.Errorf("connect to backend: %w", err)
 	}
 
-	_, err = conn.Write(data)
+	_, err = conn.Write(msg)
 	if err != nil {
 		return fmt.Errorf("send query to backend: %w", err)
 	}
@@ -177,7 +189,12 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 	}
 	buf = buf[:size]
 
-	_, err = stream.Write(buf)
+	bundle := make([]byte, 2+len(buf))
+	binary.BigEndian.PutUint16(bundle, uint16(len(buf)))
+	copy(bundle[2:], buf)
+	binary.BigEndian.PutUint16(bundle[2:], uint16(0))
+
+	_, err = stream.Write(bundle)
 	if err != nil {
 		return fmt.Errorf("send response: %w", err)
 	}
