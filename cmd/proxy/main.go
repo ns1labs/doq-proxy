@@ -7,12 +7,15 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/go-kit/kit/log"
 	quic "github.com/lucas-clemente/quic-go"
@@ -117,7 +120,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBa
 
 	var (
 		err error
-		wg sync.WaitGroup = sync.WaitGroup{}
+		wg  sync.WaitGroup = sync.WaitGroup{}
 	)
 
 	defer func() {
@@ -179,25 +182,43 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 	}
 	switch query.Question[0].Qtype {
 	case dns.TypeAXFR, dns.TypeIXFR:
-		conn, err := net.Dial("tcp", udpBackend)
+		timeout := 3 * time.Second
+		conn, err := net.DialTimeout("tcp", udpBackend, timeout)
+
 		if err != nil {
 			return fmt.Errorf("connect to TCP backend: %w", err)
 		}
+		defer conn.Close()
+
 		binary.BigEndian.PutUint16(data[2:], uint16(id))
 		_, err = conn.Write(data)
 		if err != nil {
 			return fmt.Errorf("send query to TCP backend: %w", err)
 		}
-		buf := make([]byte, 4096)
-		size, err := conn.Read(buf)
-		if err != nil {
-			return fmt.Errorf("read response from TCP backend: %w", err)
-		}
-		buf = buf[:size]
-		binary.BigEndian.PutUint16(buf[2:], uint16(0))
-		_, err = stream.Write(buf)
-		if err != nil {
-			return fmt.Errorf("send response: %w", err)
+
+		for {
+			conn.SetReadDeadline(time.Now().Add(timeout))
+			if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
+				// Ignore timeout related errors as that is how we close the connection for now
+				if strings.Contains(err.Error(), "timeout") {
+					return nil
+				}
+				return fmt.Errorf("read length from TCP backend: %w", err)
+			}
+			buf := make([]byte, length)
+			_, err := io.ReadFull(conn, buf)
+			if err != nil {
+				return fmt.Errorf("read response from TCP backend: %w", err)
+			}
+
+			bundle := make([]byte, 2+length)
+			binary.BigEndian.PutUint16(bundle, uint16(length))
+			copy(bundle[2:], buf)
+			binary.BigEndian.PutUint16(bundle[2:], uint16(0))
+			_, err = stream.Write(bundle)
+			if err != nil {
+				return fmt.Errorf("send response: %w", err)
+			}
 		}
 	default:
 		conn, err := net.Dial("udp", udpBackend)

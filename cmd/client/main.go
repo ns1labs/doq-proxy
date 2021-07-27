@@ -5,9 +5,11 @@ import (
 	"encoding/binary"
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/lucas-clemente/quic-go"
 	"github.com/miekg/dns"
@@ -20,10 +22,11 @@ type Query struct {
 
 func main() {
 	var (
-		server    string
-		dnssec    bool
-		recursion bool
-		queries   []Query
+		server     string
+		dnssec     bool
+		recursion  bool
+		exportkeys bool
+		queries    []Query
 	)
 
 	flag.Usage = func() {
@@ -34,6 +37,7 @@ func main() {
 	flag.StringVar(&server, "server", "127.0.0.1:8853", "DNS-over-QUIC server to use.")
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
+	flag.BoolVar(&exportkeys, "exportkeys", false, "Export session keys to file sessionkeys.txt for decryption")
 	flag.Parse()
 
 	if flag.NArg() == 0 || flag.NArg()%2 != 0 {
@@ -52,13 +56,20 @@ func main() {
 		queries = append(queries, Query{qname, qtype})
 	}
 
-	// TODO: make user explicitly request this!!!
-	w, err := os.OpenFile("tls-secrets.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	var keyLog io.Writer
+	if exportkeys {
+		w, err := os.OpenFile("sessionkeys.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Could not create file sessionkeys.txt\n")
+		}
+		defer w.Close()
+		keyLog = w
+	}
 
 	tls := tls.Config{
 		InsecureSkipVerify: true,
 		NextProtos:         []string{"doq-i03"},
-		KeyLogWriter:       w,
+		KeyLogWriter:       keyLog,
 	}
 	session, err := quic.DialAddr(server, &tls, nil)
 	if err != nil {
@@ -74,11 +85,9 @@ func main() {
 
 	for _, query := range queries {
 		go func(query Query) {
-			resp, err := SendQuery(session, &query, dnssec, recursion)
+			err := SendQuery(session, &query, dnssec, recursion, print)
 			if err != nil {
 				print <- fmt.Sprintf("failed to send query: %s\n", err)
-			} else {
-				print <- resp.String()
 			}
 			wg.Done()
 		}(query)
@@ -94,10 +103,10 @@ func main() {
 	}
 }
 
-func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns.Msg, error) {
+func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print chan (string)) error {
 	stream, err := session.OpenStream()
 	if err != nil {
-		return nil, fmt.Errorf("open stream: %w", err)
+		return fmt.Errorf("open stream: %w", err)
 	}
 
 	msg := dns.Msg{}
@@ -108,7 +117,7 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns
 	wire, err := msg.Pack()
 	if err != nil {
 		stream.Close()
-		return nil, fmt.Errorf("pack query: %w", err)
+		return fmt.Errorf("pack query: %w", err)
 	}
 
 	bundle := make([]byte, 2+len(wire))
@@ -117,22 +126,38 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool) (*dns
 	_, err = stream.Write(bundle)
 	stream.Close()
 	if err != nil {
-		return nil, fmt.Errorf("send query: %w", err)
+		return fmt.Errorf("send query: %w", err)
 	}
 
-	rwire, err := ioutil.ReadAll(stream)
-	if err != nil {
-		return nil, fmt.Errorf("receive response: %w", err)
+	for {
+		var length uint16
+		stream.SetDeadline(time.Now().Add(time.Second))
+		if err := binary.Read(stream, binary.BigEndian, &length); err != nil {
+			// Ignore timeout related errors as this is how we close this connection for now
+			if strings.Contains(err.Error(), "deadline") {
+				return nil
+			}
+			return fmt.Errorf("read length from QUIC connection: %w", err)
+		}
+
+		buf := make([]byte, length)
+		_, err := io.ReadFull(stream, buf)
+		if err != nil {
+			return fmt.Errorf("read response from QUIC connection: %w", err)
+		}
+
+		resp := dns.Msg{}
+		err = resp.Unpack(buf)
+		if err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
+		print <- resp.String()
+		switch msg.Question[0].Qtype {
+		case dns.TypeAXFR, dns.TypeIXFR:
+		default:
+			return nil
+		}
 	}
 
-	len := binary.BigEndian.Uint16(rwire)
-	rmsg := make([]byte, len)
-	copy(rmsg, rwire[2:])
-
-	err = msg.Unpack(rmsg)
-	if err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
-	}
-
-	return &msg, nil
+	return nil
 }
