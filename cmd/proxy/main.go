@@ -65,16 +65,16 @@ func main() {
 
 func loop(l log.Logger, ctx context.Context) error {
 	var (
-		addr       string
-		tlsCert    string
-		tlsKey     string
-		udpBackend string
+		addr    string
+		tlsCert string
+		tlsKey  string
+		backend string
 	)
 
-	flag.StringVar(&addr, "listen", "127.0.0.1:8853", "UDP address to listen on.")
+	flag.StringVar(&addr, "listen", "127.0.0.1:784", "UDP address to listen on.")
 	flag.StringVar(&tlsCert, "cert", "cert.pem", "TLS certificate path.")
 	flag.StringVar(&tlsKey, "key", "key.pem", "TLS key path.")
-	flag.StringVar(&udpBackend, "udp_backend", "8.8.4.4:53", "UDP of backend server.")
+	flag.StringVar(&backend, "backend", "8.8.4.4:53", "IP of backend server.")
 
 	flag.Parse()
 
@@ -108,14 +108,14 @@ func loop(l log.Logger, ctx context.Context) error {
 		l := log.With(l, "client", session.RemoteAddr())
 		wg.Add(1)
 		go func() {
-			handleClient(l, ctx, session, udpBackend)
+			handleClient(l, ctx, session, backend)
 			wg.Done()
 		}()
 	}
 
 }
 
-func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBackend string) {
+func handleClient(l log.Logger, ctx context.Context, session quic.Session, backend string) {
 	l.Log("msg", "session accepted")
 
 	var (
@@ -149,7 +149,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBa
 				l.Log("msg", "stream closed")
 			}()
 
-			if err := handleStream(stream, udpBackend); err != nil {
+			if err := handleStream(stream, backend); err != nil {
 				l.Log("msg", "stream failure", "err", err)
 			}
 		}()
@@ -158,7 +158,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, udpBa
 	wg.Wait()
 }
 
-func handleStream(stream quic.Stream, udpBackend string) error {
+func handleStream(stream quic.Stream, backend string) error {
 	defer stream.Close()
 
 	data, err := ioutil.ReadAll(stream)
@@ -170,9 +170,9 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 	msg := make([]byte, length)
 	copy(msg, data[2:])
 	var id uint16
-	iderr := binary.Read(rand.Reader, binary.BigEndian, &id)
-	if iderr != nil {
-		panic("generating random id failed: " + iderr.Error())
+	err = binary.Read(rand.Reader, binary.BigEndian, &id)
+	if err != nil {
+		return fmt.Errorf("generating random id failed: %w", err)
 	}
 
 	query := dns.Msg{}
@@ -183,7 +183,7 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 	switch query.Question[0].Qtype {
 	case dns.TypeAXFR, dns.TypeIXFR:
 		timeout := 3 * time.Second
-		conn, err := net.DialTimeout("tcp", udpBackend, timeout)
+		conn, err := net.DialTimeout("tcp", backend, timeout)
 
 		if err != nil {
 			return fmt.Errorf("connect to TCP backend: %w", err)
@@ -221,7 +221,7 @@ func handleStream(stream quic.Stream, udpBackend string) error {
 			}
 		}
 	default:
-		conn, err := net.Dial("udp", udpBackend)
+		conn, err := net.Dial("udp", backend)
 		if err != nil {
 			return fmt.Errorf("connect to UDP backend: %w", err)
 		}

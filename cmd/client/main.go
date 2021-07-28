@@ -34,7 +34,7 @@ func main() {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&server, "server", "127.0.0.1:8853", "DNS-over-QUIC server to use.")
+	flag.StringVar(&server, "server", "127.0.0.1:784", "DNS-over-QUIC server to use.")
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
 	flag.BoolVar(&exportkeys, "exportkeys", false, "Export session keys to file sessionkeys.txt for decryption")
@@ -52,8 +52,12 @@ func main() {
 			fmt.Fprintf(os.Stderr, "invalid qtype: %s\n", flag.Arg(i+1))
 			os.Exit(1)
 		}
-
-		queries = append(queries, Query{qname, qtype})
+		if qtype == dns.TypeIXFR {
+			// TODO: Allow user to pass in serial number for IXFR
+			fmt.Fprintf(os.Stderr, "skipping unsupported qtype: %s\n", flag.Arg(i+1))
+		} else {
+			queries = append(queries, Query{qname, qtype})
+		}
 	}
 
 	var keyLog io.Writer

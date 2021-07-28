@@ -12,7 +12,7 @@ conditions in the LICENSE file.
 ## Protocol compatibility
 
 The DNS-over-QUIC implementation follows
-[draft-ietf-dprive-dnsoquic-02](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
+[draft-ietf-dprive-dnsoquic-03](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
 
 The QUIC protocol compatibility depends on the
 [quic-go](https:///github.com/lucas-clemente/quic-go) library.
@@ -35,17 +35,18 @@ openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltNam
 
 Start the proxy. By default, the server loads the TLS key and certificate from
 the files generated above, will use 8.8.4.4 (Google Public DNS) as a backend
-server, and will listen on UDP port 8853. Use command line options to modify
-the default behavior. Notice the use of the default port requries starting the
-proxy as superuser.
+server, and will listen on UDP port 784 (experimental port from the draft). Use
+command line options to modify the default behavior. Notice the use of the
+default port requires starting the proxy as superuser.
 
 ```
 sudo ./proxy
 ```
 
-Query the proxy using the testing utility. The client establishes a QUIC session
-to the server and sends each query via a dedicated stream. The replies are printed
-in the order of completion:
+Query the proxy using the testing utility. The client establishes a QUIC
+session to the server and sends each query via a dedicated stream. Upstream, the
+XFR requests are sent over TCP, all others are sent over UDP. The replies are
+printed in the order of completion:
 
 ```
 ./client ns1.com A ns1.com AAAA
@@ -97,7 +98,7 @@ The proxy also logs information about accepted connections and streams which
 can be used to inspect the sequence of events:
 
 ```
-$ sudo ./proxy -listen 127.0.0.1:784 -cert cert.pem -key key.pem -udp_backend 8.8.4.4:53
+$ sudo ./proxy -listen 127.0.0.1:784 -cert cert.pem -key key.pem -backend 8.8.4.4:53
 ts=2019-03-24T10:31:32.408891Z msg="listening for clients" addr=127.0.0.1:784
 ts=2019-03-24T12:16:45.048583Z client=127.0.0.1:52212 msg="session accepted"
 ts=2019-03-24T12:16:45.050231Z client=127.0.0.1:52212 stream_id=0 msg="stream accepted"
