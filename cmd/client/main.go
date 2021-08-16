@@ -140,21 +140,22 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print
 		return fmt.Errorf("send query: %w", err)
 	}
 
+	stream.SetDeadline(time.Now().Add(1 * time.Second))
+
 	for {
 		var length uint16
-		stream.SetDeadline(time.Now().Add(time.Second))
 		if err := binary.Read(stream, binary.BigEndian, &length); err != nil {
 			// Ignore timeout related errors as this is how we close this connection for now
 			if errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil
 			}
-			return fmt.Errorf("read length from QUIC connection: %w", err)
+			return fmt.Errorf("read response length: %w", err)
 		}
 
 		buf := make([]byte, length)
 		_, err := io.ReadFull(stream, buf)
 		if err != nil {
-			return fmt.Errorf("read response from QUIC connection: %w", err)
+			return fmt.Errorf("read response payload: %w", err)
 		}
 
 		resp := dns.Msg{}
