@@ -3,11 +3,11 @@ package main
 import (
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"strings"
 	"sync"
 	"time"
 
@@ -145,7 +145,7 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print
 		stream.SetDeadline(time.Now().Add(time.Second))
 		if err := binary.Read(stream, binary.BigEndian, &length); err != nil {
 			// Ignore timeout related errors as this is how we close this connection for now
-			if strings.Contains(err.Error(), "deadline") {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
 				return nil
 			}
 			return fmt.Errorf("read length from QUIC connection: %w", err)
