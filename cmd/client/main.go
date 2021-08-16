@@ -21,6 +21,10 @@ type Query struct {
 }
 
 func main() {
+	os.Exit(main2())
+}
+
+func main2() int {
 	var (
 		server    string
 		dnssec    bool
@@ -42,7 +46,7 @@ func main() {
 
 	if flag.NArg() == 0 || flag.NArg()%2 != 0 {
 		flag.Usage()
-		os.Exit(1)
+		return 1
 	}
 
 	for i := 0; (i + 1) < flag.NArg(); i += 2 {
@@ -50,7 +54,7 @@ func main() {
 		qtype, ok := dns.StringToType[flag.Arg(i+1)]
 		if !ok {
 			fmt.Fprintf(os.Stderr, "invalid qtype: %s\n", flag.Arg(i+1))
-			os.Exit(1)
+			return 1
 		}
 		if qtype == dns.TypeIXFR {
 			// TODO: Allow user to pass in serial number for IXFR
@@ -65,6 +69,7 @@ func main() {
 		w, err := os.OpenFile(keysPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to open file for session keys: %s\n", err)
+			return 1
 		}
 		defer w.Close()
 		keyLog = w
@@ -78,7 +83,7 @@ func main() {
 	session, err := quic.DialAddr(server, &tls, nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to connect to the server: %s\n", err)
-		os.Exit(1)
+		return 1
 	}
 	defer session.CloseWithError(0, "") // TODO: Is this how the session should be closed?
 
@@ -105,6 +110,8 @@ func main() {
 	for p := range print {
 		fmt.Println(p)
 	}
+
+	return 0
 }
 
 func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print chan (string)) error {
