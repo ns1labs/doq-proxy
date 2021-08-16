@@ -170,6 +170,4 @@ func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print
 			return nil
 		}
 	}
-
-	return nil
 }
