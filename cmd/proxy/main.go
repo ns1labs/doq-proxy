@@ -5,14 +5,13 @@ import (
 	"crypto/rand"
 	"crypto/tls"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
-	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -161,27 +160,33 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Session, backe
 func handleStream(stream quic.Stream, backend string) error {
 	defer stream.Close()
 
-	data, err := ioutil.ReadAll(stream)
+	wireLength := make([]byte, 2)
+	_, err := io.ReadFull(stream, wireLength)
 	if err != nil {
-		return fmt.Errorf("read query: %w", err)
+		return fmt.Errorf("read query length: %w", err)
 	}
 
-	length := binary.BigEndian.Uint16(data)
-	msg := make([]byte, length)
-	copy(msg, data[2:])
+	length := binary.BigEndian.Uint16(wireLength)
+
+	wireQuery := make([]byte, length)
+	_, err = io.ReadFull(stream, wireQuery)
+	if err != nil {
+		return fmt.Errorf("read query payload: %w", err)
+	}
+
+	query := dns.Msg{}
+	err = query.Unpack(wireQuery)
+	if err != nil {
+		return fmt.Errorf("could not decode query: %w", err)
+	}
+
 	var id uint16
 	err = binary.Read(rand.Reader, binary.BigEndian, &id)
 	if err != nil {
 		return fmt.Errorf("generating random id failed: %w", err)
 	}
 
-	query := dns.Msg{}
-	err = query.Unpack(msg)
-	if err != nil {
-		return fmt.Errorf("could not decode query: %w", err)
-	}
-	switch query.Question[0].Qtype {
-	case dns.TypeAXFR, dns.TypeIXFR:
+	if len(query.Question) != 0 && (query.Question[0].Qtype == dns.TypeAXFR || query.Question[0].Qtype == dns.TypeIXFR) {
 		timeout := 3 * time.Second
 		conn, err := net.DialTimeout("tcp", backend, timeout)
 
@@ -190,21 +195,28 @@ func handleStream(stream quic.Stream, backend string) error {
 		}
 		defer conn.Close()
 
-		binary.BigEndian.PutUint16(data[2:], uint16(id))
-		_, err = conn.Write(data)
+		bundle := make([]byte, 0)
+		bundle = append(bundle, wireLength...)
+		bundle = append(bundle, wireQuery...)
+
+		binary.BigEndian.PutUint16(bundle[2:], uint16(id))
+		_, err = conn.Write(bundle)
 		if err != nil {
 			return fmt.Errorf("send query to TCP backend: %w", err)
 		}
 
+		conn.SetReadDeadline(time.Now().Add(timeout))
+
 		for {
-			conn.SetReadDeadline(time.Now().Add(timeout))
+			var length uint16
 			if err := binary.Read(conn, binary.BigEndian, &length); err != nil {
 				// Ignore timeout related errors as that is how we close the connection for now
-				if strings.Contains(err.Error(), "timeout") {
+				if errors.Is(err, os.ErrDeadlineExceeded) {
 					return nil
 				}
 				return fmt.Errorf("read length from TCP backend: %w", err)
 			}
+
 			buf := make([]byte, length)
 			_, err := io.ReadFull(conn, buf)
 			if err != nil {
@@ -220,14 +232,15 @@ func handleStream(stream quic.Stream, backend string) error {
 				return fmt.Errorf("send response: %w", err)
 			}
 		}
-	default:
+
+	} else {
 		conn, err := net.Dial("udp", backend)
 		if err != nil {
 			return fmt.Errorf("connect to UDP backend: %w", err)
 		}
 
-		binary.BigEndian.PutUint16(msg, uint16(id))
-		_, err = conn.Write(msg)
+		binary.BigEndian.PutUint16(wireQuery, uint16(id))
+		_, err = conn.Write(wireQuery)
 		if err != nil {
 			return fmt.Errorf("send query to UDP backend: %w", err)
 		}
