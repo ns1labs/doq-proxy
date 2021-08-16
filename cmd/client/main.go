@@ -22,11 +22,11 @@ type Query struct {
 
 func main() {
 	var (
-		server     string
-		dnssec     bool
-		recursion  bool
-		exportkeys bool
-		queries    []Query
+		server    string
+		dnssec    bool
+		recursion bool
+		keysPath  string
+		queries   []Query
 	)
 
 	flag.Usage = func() {
@@ -37,7 +37,7 @@ func main() {
 	flag.StringVar(&server, "server", "127.0.0.1:784", "DNS-over-QUIC server to use.")
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
-	flag.BoolVar(&exportkeys, "exportkeys", false, "Export session keys to file sessionkeys.txt for decryption")
+	flag.StringVar(&keysPath, "export_keys_path", "", "File name to export session keys for decryption.")
 	flag.Parse()
 
 	if flag.NArg() == 0 || flag.NArg()%2 != 0 {
@@ -61,10 +61,10 @@ func main() {
 	}
 
 	var keyLog io.Writer
-	if exportkeys {
-		w, err := os.OpenFile("sessionkeys.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+	if keysPath != "" {
+		w, err := os.OpenFile(keysPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Could not create file sessionkeys.txt\n")
+			fmt.Fprintf(os.Stderr, "failed to open file for session keys: %s\n", err)
 		}
 		defer w.Close()
 		keyLog = w
