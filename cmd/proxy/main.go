@@ -84,7 +84,7 @@ func loop(l log.Logger, ctx context.Context) error {
 
 	tls := tls.Config{
 		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"doq-i03"},
+		NextProtos:   []string{"doq"},
 	}
 
 	listener, err := quic.ListenAddr(addr, &tls, nil)
@@ -114,7 +114,7 @@ func loop(l log.Logger, ctx context.Context) error {
 
 }
 
-func handleClient(l log.Logger, ctx context.Context, session quic.Session, backend string) {
+func handleClient(l log.Logger, ctx context.Context, session quic.Connection, backend string) {
 	l.Log("msg", "session accepted")
 
 	var (
