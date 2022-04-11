@@ -77,7 +77,7 @@ func main2() int {
 
 	tls := tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{"doq-i03"},
+		NextProtos:         []string{"doq"},
 		KeyLogWriter:       keyLog,
 	}
 	session, err := quic.DialAddr(server, &tls, nil)
@@ -114,7 +114,7 @@ func main2() int {
 	return 0
 }
 
-func SendQuery(session quic.Session, query *Query, dnssec, recursion bool, print chan (string)) error {
+func SendQuery(session quic.Connection, query *Query, dnssec, recursion bool, print chan (string)) error {
 	stream, err := session.OpenStream()
 	if err != nil {
 		return fmt.Errorf("open stream: %w", err)
