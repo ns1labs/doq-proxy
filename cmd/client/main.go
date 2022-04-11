@@ -38,7 +38,7 @@ func main2() int {
 		flag.PrintDefaults()
 	}
 
-	flag.StringVar(&server, "server", "127.0.0.1:784", "DNS-over-QUIC server to use.")
+	flag.StringVar(&server, "server", "127.0.0.1:853", "DNS-over-QUIC server to use.")
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
 	flag.StringVar(&keysPath, "export_keys_path", "", "File name to export session keys for decryption.")

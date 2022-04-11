@@ -35,7 +35,7 @@ openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltNam
 
 Start the proxy. By default, the server loads the TLS key and certificate from
 the files generated above, will use 8.8.4.4 (Google Public DNS) as a backend
-server, and will listen on UDP port 784 (experimental port from the draft). Use
+server, and will listen on UDP port 853 (experimental port from the draft). Use
 command line options to modify the default behavior. Notice the use of the
 default port requires starting the proxy as superuser.
 
@@ -98,8 +98,8 @@ The proxy also logs information about accepted connections and streams which
 can be used to inspect the sequence of events:
 
 ```
-$ sudo ./proxy -listen 127.0.0.1:784 -cert cert.pem -key key.pem -backend 8.8.4.4:53
-ts=2019-03-24T10:31:32.408891Z msg="listening for clients" addr=127.0.0.1:784
+$ sudo ./proxy -listen 127.0.0.1:853 -cert cert.pem -key key.pem -backend 8.8.4.4:53
+ts=2019-03-24T10:31:32.408891Z msg="listening for clients" addr=127.0.0.1:853
 ts=2019-03-24T12:16:45.048583Z client=127.0.0.1:52212 msg="session accepted"
 ts=2019-03-24T12:16:45.050231Z client=127.0.0.1:52212 stream_id=0 msg="stream accepted"
 ts=2019-03-24T12:16:45.050278Z client=127.0.0.1:52212 stream_id=4 msg="stream accepted"

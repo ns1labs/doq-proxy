@@ -70,7 +70,7 @@ func loop(l log.Logger, ctx context.Context) error {
 		backend string
 	)
 
-	flag.StringVar(&addr, "listen", "127.0.0.1:784", "UDP address to listen on.")
+	flag.StringVar(&addr, "listen", "127.0.0.1:853", "UDP address to listen on.")
 	flag.StringVar(&tlsCert, "cert", "cert.pem", "TLS certificate path.")
 	flag.StringVar(&tlsKey, "key", "key.pem", "TLS key path.")
 	flag.StringVar(&backend, "backend", "8.8.4.4:53", "IP of backend server.")
