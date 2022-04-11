@@ -2,7 +2,7 @@
 
 DNS-over-QUIC to UDP proxy and client implementation.
 
-2019—2021 © NSONE, Inc.
+2019—2022 © NSONE, Inc.
 
 ## License
 
@@ -12,7 +12,7 @@ conditions in the LICENSE file.
 ## Protocol compatibility
 
 The DNS-over-QUIC implementation follows
-[draft-ietf-dprive-dnsoquic-03](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
+[draft-ietf-dprive-dnsoquic-11](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
 
 The QUIC protocol compatibility depends on the
 [quic-go](https:///github.com/lucas-clemente/quic-go) library.
