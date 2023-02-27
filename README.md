@@ -11,8 +11,8 @@ conditions in the LICENSE file.
 
 ## Protocol compatibility
 
-The DNS-over-QUIC implementation follows
-[draft-ietf-dprive-dnsoquic-11](https://datatracker.ietf.org/doc/draft-ietf-dprive-dnsoquic).
+The implementation follows
+[RFC 9250: DNS over Dedicated QUIC Connections](https://www.rfc-editor.org/rfc/rfc9250.html).
 
 The QUIC protocol compatibility depends on the
 [quic-go](https:///github.com/lucas-clemente/quic-go) library.

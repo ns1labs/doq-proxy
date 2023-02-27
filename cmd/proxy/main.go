@@ -84,7 +84,7 @@ func loop(l log.Logger, ctx context.Context) error {
 
 	tls := tls.Config{
 		Certificates: []tls.Certificate{cert},
-		NextProtos:   []string{"doq-i11"},
+		NextProtos:   []string{"doq"},
 	}
 
 	listener, err := quic.ListenAddr(addr, &tls, nil)

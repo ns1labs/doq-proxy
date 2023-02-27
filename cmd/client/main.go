@@ -77,7 +77,7 @@ func main2() int {
 
 	tls := tls.Config{
 		InsecureSkipVerify: true,
-		NextProtos:         []string{"doq-i11"},
+		NextProtos:         []string{"doq"},
 		KeyLogWriter:       keyLog,
 	}
 	session, err := quic.DialAddr(server, &tls, nil)
