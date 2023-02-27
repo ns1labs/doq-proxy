@@ -2,7 +2,7 @@
 
 DNS-over-QUIC to UDP proxy and client implementation.
 
-2019—2022 © NSONE, Inc.
+2019—2023 © NS1
 
 ## License
 
