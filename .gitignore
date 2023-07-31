@@ -1,5 +1,6 @@
 # binaries
 /client
+/echo
 /proxy
 
 # testing certs
