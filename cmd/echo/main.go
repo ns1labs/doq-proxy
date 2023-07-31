@@ -140,7 +140,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Connection) {
 				l.Log("msg", "stream closed")
 			}()
 
-			if err := handleStream(stream); err != nil {
+			if err := handleStream(l, stream); err != nil {
 				l.Log("msg", "stream failure", "err", err)
 			}
 		}()
@@ -149,15 +149,16 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Connection) {
 	wg.Wait()
 }
 
-func handleStream(stream quic.Stream) error {
-	defer stream.Close()
-
-	data, err := io.ReadAll(stream)
-	if err != nil {
-		return fmt.Errorf("read all: %w", err)
+func handleStream(l log.Logger, stream quic.Stream) error {
+	data := make([]byte, 2048)
+	n, err := stream.Read(data)
+	if err == io.EOF {
+		defer stream.Close()
+	} else if err != nil {
+		return fmt.Errorf("read query: %w", err)
 	}
 
-	_, err = stream.Write(data)
+	_, err = stream.Write(data[:n])
 	if err != nil {
 		return fmt.Errorf("send response: %w", err)
 	}
