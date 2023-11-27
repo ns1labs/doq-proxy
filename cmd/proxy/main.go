@@ -11,8 +11,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	quic "github.com/lucas-clemente/quic-go"
+	"github.com/go-kit/log"
+	quic "github.com/quic-go/quic-go"
 	"github.com/miekg/dns"
 
 	server "github.com/ns1/doq-proxy/server"

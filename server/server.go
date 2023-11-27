@@ -4,13 +4,15 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"sync"
+	"math"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
+	"time"
 
-	"github.com/go-kit/kit/log"
-	quic "github.com/lucas-clemente/quic-go"
+	"github.com/go-kit/log"
+	quic "github.com/quic-go/quic-go"
 	"github.com/oklog/run"
 )
 
@@ -78,9 +80,16 @@ func loop(l log.Logger, ctx context.Context, sh StreamHandler,
 	tls := tls.Config{
 		Certificates: []tls.Certificate{cert},
 		NextProtos:   []string{"doq"},
+		MinVersion:   tls.VersionTLS13,
 	}
 
-	listener, err := quic.ListenAddr(addr, &tls, nil)
+	quic_conf := quic.Config{
+		MaxIncomingStreams: math.MaxInt64,
+		MaxIdleTimeout: 10 * time.Second,
+		Allow0RTT: true,
+	}
+
+	listener, err := quic.ListenAddrEarly(addr, &tls, &quic_conf)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
@@ -120,6 +129,7 @@ func handleClient(l log.Logger, ctx context.Context, session quic.Connection,
 		msg := ""
 		if err != nil {
 			msg = err.Error()
+			l.Log("msg", "session failure", "err", err)
 		}
 		session.CloseWithError(0, msg)
 
