@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"math"
 	"os"
 	"os/signal"
 	"sync"
@@ -84,7 +83,6 @@ func loop(l log.Logger, ctx context.Context, sh StreamHandler,
 	}
 
 	quic_conf := quic.Config{
-		MaxIncomingStreams: math.MaxInt64,
 		MaxIdleTimeout: 10 * time.Second,
 		Allow0RTT: true,
 	}
