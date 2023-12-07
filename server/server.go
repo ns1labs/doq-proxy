@@ -44,21 +44,24 @@ func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 				addr string
 				tlsCert string
 				tlsKey string
+				keyLog string
 				baton T
 			)
 
-			flag.StringVar(&addr, "listen",
-				"127.0.0.1:853", "UDP address to listen on.")
-			flag.StringVar(&tlsCert, "cert",
-				"cert.pem", "TLS certificate path.")
-			flag.StringVar(&tlsKey, "key",
-				"key.pem", "TLS key path.")
+			flag.StringVar(&addr, "listen", "127.0.0.1:853",
+				"UDP address to listen on.")
+			flag.StringVar(&tlsCert, "cert", "cert.pem",
+				"TLS certificate path.")
+			flag.StringVar(&tlsKey, "key", "key.pem",
+				"TLS key path.")
+			flag.StringVar(&keyLog, "keylog", "",
+				"TLS key log file (e.g. for Wireshark analysis) - none if empty")
 			if flagsGenerator != nil {
 				flagsGenerator(&baton)
 			}
 			flag.Parse()
 
-			return loop(l, ctx, sh, addr, tlsCert, tlsKey, baton)
+			return loop(l, ctx, sh, addr, tlsCert, tlsKey, keyLog, baton)
 		}, func(error) {
 			cancel()
 		})
@@ -87,7 +90,7 @@ func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 }
 
 func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
-                 addr string, tlsCert string, tlsKey string,
+                 addr string, tlsCert string, tlsKey string, keyLog string,
                  baton T) error {
 
 	cert, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
@@ -100,6 +103,16 @@ func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
 		NextProtos:   []string{"doq"},
 		MinVersion:   tls.VersionTLS13,
 	}
+
+	if keyLog != "" {
+		keyLogFile, err := os.OpenFile(keyLog, os.O_APPEND | os.O_CREATE | os.O_WRONLY, 0755)
+		if err != nil {
+			return fmt.Errorf("open keylog file: %w", err)
+		}
+		defer keyLogFile.Close()
+		tls.KeyLogWriter = keyLogFile
+	}
+
 
 	quic_conf := quic.Config{
 		MaxIdleTimeout: 10 * time.Second,
