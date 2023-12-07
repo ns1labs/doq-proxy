@@ -15,7 +15,7 @@ import (
 	quic "github.com/quic-go/quic-go"
 	"github.com/miekg/dns"
 
-	server "github.com/ns1/doq-proxy/server"
+	"github.com/ns1/doq-proxy/server"
 )
 
 func main() {
@@ -24,24 +24,24 @@ func main() {
 
 func genParams() server.Params {
 	var params server.Params
+	var backend string
 
 	flag.StringVar(&params.Addr, "listen", "127.0.0.1:853", "UDP address to listen on.")
 	flag.StringVar(&params.TlsCert, "cert", "cert.pem", "TLS certificate path.")
 	flag.StringVar(&params.TlsKey, "key", "key.pem", "TLS key path.")
-
-	var backend string
 	flag.StringVar(&backend, "backend", "8.8.4.4:53", "IP of backend server.")
-	params.Baton = backend
 
 	flag.Parse()
+
+	params.Baton = backend
 
 	return params
 }
 
-func handleStream(l log.Logger, stream quic.Stream, data any) error {
+func handleStream(l log.Logger, stream quic.Stream, baton any) error {
 	defer stream.Close()
 
-	backend := data.(string)
+	backend := baton.(string)
 
 	wireLength := make([]byte, 2)
 	_, err := io.ReadFull(stream, wireLength)
