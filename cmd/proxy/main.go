@@ -19,29 +19,15 @@ import (
 )
 
 func main() {
-	server.Main(genParams, handleStream)
+	server.Main(genFlags, handleStream)
 }
 
-func genParams() server.Params {
-	var params server.Params
-	var backend string
-
-	flag.StringVar(&params.Addr, "listen", "127.0.0.1:853", "UDP address to listen on.")
-	flag.StringVar(&params.TlsCert, "cert", "cert.pem", "TLS certificate path.")
-	flag.StringVar(&params.TlsKey, "key", "key.pem", "TLS key path.")
-	flag.StringVar(&backend, "backend", "8.8.4.4:53", "IP of backend server.")
-
-	flag.Parse()
-
-	params.Baton = backend
-
-	return params
+func genFlags(backend *string) {
+	flag.StringVar(backend, "backend", "8.8.4.4:53", "IP of backend server.")
 }
 
-func handleStream(l log.Logger, stream quic.Stream, baton any) error {
+func handleStream(l log.Logger, stream quic.Stream, backend string) error {
 	defer stream.Close()
-
-	backend := baton.(string)
 
 	wireLength := make([]byte, 2)
 	_, err := io.ReadFull(stream, wireLength)

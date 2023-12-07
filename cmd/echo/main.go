@@ -14,23 +14,11 @@ import (
 )
 
 func main() {
-	server.Main(genParams, handleStream)
+	server.Main(genFlags, handleStream)
 }
 
-func genParams() server.Params {
-	var params server.Params
-	var dns bool = true
-
-	flag.StringVar(&params.Addr, "listen", "127.0.0.1:853", "UDP address to listen on.")
-	flag.StringVar(&params.TlsCert, "cert", "cert.pem", "TLS certificate path.")
-	flag.StringVar(&params.TlsKey, "key", "key.pem", "TLS key path.")
-	flag.BoolVar(&dns, "dns", true, "If true, validates the traffic as DNS (default).")
-
-	flag.Parse()
-
-	params.Baton = dns
-
-	return params
+func genFlags(dns *bool) {
+	flag.BoolVar(dns, "dns", true, "If true, validates the traffic as DNS.")
 }
 
 func handleDnsStream(l log.Logger, stream quic.Stream) error {
@@ -104,8 +92,7 @@ func handleDumbStream(l log.Logger, stream quic.Stream) error {
 	return nil
 }
 
-func handleStream(l log.Logger, stream quic.Stream, baton any) error {
-	dns := baton.(bool)
+func handleStream(l log.Logger, stream quic.Stream, dns bool) error {
 	if dns {
 		return handleDnsStream(l, stream)
 	} else {

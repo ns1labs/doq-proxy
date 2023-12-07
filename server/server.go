@@ -3,6 +3,7 @@ package server
 import (
 	"context"
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"os"
 	"os/signal"
@@ -15,31 +16,49 @@ import (
 	"github.com/oklog/run"
 )
 
-type Params struct {
-	Addr string
-	TlsCert string
-	TlsKey string
-	Baton any
-}
+// Adds specific flags for the server type - e.g. proxy takes a string parameter
+// containing the backend address. baton is the memory into which the parameters
+// are to be stored - the result is then passed to the corresponding
+// StreamHandler.
+type FlagsGenerator[T any] func(baton *T)
 
-type ParamsGenerator func() Params
-type StreamHandler func(l log.Logger, stream quic.Stream, baton any) error
+// Handles data for the QUIC stream. The baton parameter is of a server-specific
+// type.
+type StreamHandler[T any] func(l log.Logger, stream quic.Stream, baton T) error
 
-func Main(pg ParamsGenerator, sh StreamHandler) {
+// Starts the DNS-over-QUIC server. T is the type of parameters for the specific
+// server - e.g. proxy has a string parameter containing the backend address.
+func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 	l := log.NewLogfmtLogger(log.NewSyncWriter(os.Stdout))
 	l = log.WithPrefix(l, "ts", log.DefaultTimestampUTC)
 
-	var g run.Group
+	var group run.Group
 
 	// proxy code loop
 	{
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 
-		g.Add(func() error {
-			params := pg()
-			return loop(l, ctx, sh, params.Addr, params.TlsCert,
-					params.TlsKey, params.Baton)
+		group.Add(func() error {
+			var (
+				addr string
+				tlsCert string
+				tlsKey string
+				baton T
+			)
+
+			flag.StringVar(&addr, "listen",
+				"127.0.0.1:853", "UDP address to listen on.")
+			flag.StringVar(&tlsCert, "cert",
+				"cert.pem", "TLS certificate path.")
+			flag.StringVar(&tlsKey, "key",
+				"key.pem", "TLS key path.")
+			if flagsGenerator != nil {
+				flagsGenerator(&baton)
+			}
+			flag.Parse()
+
+			return loop(l, ctx, sh, addr, tlsCert, tlsKey, baton)
 		}, func(error) {
 			cancel()
 		})
@@ -48,7 +67,7 @@ func Main(pg ParamsGenerator, sh StreamHandler) {
 	// signal termination
 	{
 		sigterm := make(chan os.Signal, 1)
-		g.Add(func() error {
+		group.Add(func() error {
 			signal.Notify(sigterm, syscall.SIGINT, syscall.SIGTERM)
 			if sig, ok := <-sigterm; ok {
 				l.Log("msg", "stopping the proxy", "signal", sig.String())
@@ -60,16 +79,16 @@ func Main(pg ParamsGenerator, sh StreamHandler) {
 		})
 	}
 
-	err := g.Run()
+	err := group.Run()
 	if err != nil {
 		l.Log("msg", "terminating after error", "err", err)
 		os.Exit(1)
 	}
 }
 
-func loop(l log.Logger, ctx context.Context, sh StreamHandler,
-          addr string, tlsCert string, tlsKey string,
-          baton any) error {
+func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
+                 addr string, tlsCert string, tlsKey string,
+                 baton T) error {
 
 	cert, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 	if err != nil {
@@ -113,9 +132,9 @@ func loop(l log.Logger, ctx context.Context, sh StreamHandler,
 	}
 }
 
-func handleClient(l log.Logger, ctx context.Context, session quic.Connection,
-                  sh StreamHandler, baton any) {
-
+func handleClient[T any](l log.Logger, ctx context.Context,
+                         session quic.Connection, sh StreamHandler[T],
+                         baton T) {
 	l.Log("msg", "session accepted")
 
 	var (
