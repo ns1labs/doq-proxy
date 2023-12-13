@@ -85,17 +85,35 @@ ns1.com.	25	IN	RRSIG	A 13 2 26 20190325121645 20190323121645 44688 ns1.com. xJK5
 ; EDNS: version 0; flags: do; udp: 512
 ```
 
+## Echo server
+
+This codebase also includes an echo server, i.e. a server that, for each stream,
+reads its whole contents, and reflects them back to the client.
+
+To build the echo server, use the following command:
+
+```
+go build ./cmd/echo
+```
+
+The echo server may be run the same way as the proxy, except that it does not
+accept a `-backend` option, since it does not forward queries anywhere.
+
+```
+sudo ./echo
+```
+
 ## Troubleshooting
 
 Note that this is an experimental code built on top of an experimental protocol.
 
-The server and client in this repository use the same QUIC library
+The servers and client in this repository use the same QUIC library
 and therefore they should be compatible. However, if a different client is
 used, the handshake may fail on the version negotiation. We suggest to check
 packet capture first when the client is unable to connect.
 
-The proxy also logs information about accepted connections and streams which
-can be used to inspect the sequence of events:
+The proxy and the echo server also log information about accepted connections
+and streams, which can be used to inspect the sequence of events:
 
 ```
 $ sudo ./proxy -listen 127.0.0.1:853 -cert cert.pem -key key.pem -backend 8.8.4.4:53

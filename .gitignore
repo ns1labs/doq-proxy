@@ -1,7 +1,11 @@
 # binaries
 /client
+/echo
 /proxy
 
 # testing certs
 /cert.pem
 /key.pem
+
+# Go sum
+go.sum
