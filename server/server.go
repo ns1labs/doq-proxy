@@ -5,6 +5,8 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"os/signal"
 	"sync"
@@ -15,6 +17,8 @@ import (
 	quic "github.com/quic-go/quic-go"
 	"github.com/oklog/run"
 )
+
+const DoqUnspecifiedError = 0x5
 
 // Adds specific flags for the server type - e.g. proxy takes a string parameter
 // containing the backend address. baton is the memory into which the parameters
@@ -45,6 +49,7 @@ func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 				tlsCert string
 				tlsKey string
 				keyLog string
+				randomReset float64
 				baton T
 			)
 
@@ -56,12 +61,22 @@ func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 				"TLS key path.")
 			flag.StringVar(&keyLog, "keylog", "",
 				"TLS key log file (e.g. for Wireshark analysis) - none if empty")
+			flag.Float64Var(&randomReset, "reset", 0.0,
+				"Float between 0 and 1 determining the chance that a stream will be randomly reset")
 			if flagsGenerator != nil {
 				flagsGenerator(&baton)
 			}
 			flag.Parse()
 
-			return loop(l, ctx, sh, addr, tlsCert, tlsKey, keyLog, baton)
+			if randomReset < 0.0 || randomReset > 1.0 {
+				return fmt.Errorf("random-reset value %v is not between 0 and 1",
+						randomReset)
+			}
+
+			resetThreshold := uint32(randomReset * math.MaxUint32)
+
+			return loop(l, ctx, sh, addr, tlsCert, tlsKey, keyLog,
+					resetThreshold, baton)
 		}, func(error) {
 			cancel()
 		})
@@ -91,7 +106,7 @@ func Main[T any](flagsGenerator FlagsGenerator[T], sh StreamHandler[T]) {
 
 func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
                  addr string, tlsCert string, tlsKey string, keyLog string,
-                 baton T) error {
+                 resetThreshold uint32, baton T) error {
 
 	cert, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
 	if err != nil {
@@ -139,7 +154,7 @@ func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
 		l := log.With(l, "client", session.RemoteAddr())
 		wg.Add(1)
 		go func() {
-			handleClient(l, ctx, session, sh, baton)
+			handleClient(l, ctx, session, sh, resetThreshold, baton)
 			wg.Done()
 		}()
 	}
@@ -147,7 +162,7 @@ func loop[T any](l log.Logger, ctx context.Context, sh StreamHandler[T],
 
 func handleClient[T any](l log.Logger, ctx context.Context,
                          session quic.Connection, sh StreamHandler[T],
-                         baton T) {
+                         resetThreshold uint32, baton T) {
 	l.Log("msg", "session accepted")
 
 	var (
@@ -181,6 +196,16 @@ func handleClient[T any](l log.Logger, ctx context.Context,
 				wg.Done()
 				l.Log("msg", "stream closed")
 			}()
+
+			if resetThreshold > 0 {
+				r := rand.Uint32()
+				if r < resetThreshold {
+					stream.CancelRead(DoqUnspecifiedError)
+					stream.CancelWrite(DoqUnspecifiedError)
+					stream.Close()
+					return
+				}
+			}
 
 			if err := sh(l, stream, baton); err != nil {
 				l.Log("msg", "stream failure", "err", err)
