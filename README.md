@@ -15,7 +15,7 @@ The implementation follows
 [RFC 9250: DNS over Dedicated QUIC Connections](https://www.rfc-editor.org/rfc/rfc9250.html).
 
 The QUIC protocol compatibility depends on the
-[quic-go](https:///github.com/lucas-clemente/quic-go) library.
+[quic-go](https:///github.com/quic-go/quic-go) library.
 
 ## Getting started
 

@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/go-kit/kit/log"
-	quic "github.com/lucas-clemente/quic-go"
 	"github.com/miekg/dns"
 	"github.com/oklog/run"
+	"github.com/quic-go/quic-go"
 )
 
 func main() {
