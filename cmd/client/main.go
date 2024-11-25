@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"flag"
@@ -33,6 +34,9 @@ func main2() int {
 		keysPath  string
 		queries   []Query
 		timeout   time.Duration
+		tlsCA     string
+		tlsCert   string
+		tlsKey    string
 	)
 
 	flag.Usage = func() {
@@ -45,6 +49,9 @@ func main2() int {
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
 	flag.StringVar(&keysPath, "export_keys_path", "", "File name to export session keys for decryption.")
 	flag.DurationVar(&timeout, "timeout", 3*time.Second, "Connection timeout.")
+	flag.StringVar(&tlsCA, "ca_certs", "", "Path to CA certificate bundle.")
+	flag.StringVar(&tlsCert, "cert", "", "Path to client TLS certificate.")
+	flag.StringVar(&tlsKey, "key", "", "Path to client TLS key.")
 	flag.Parse()
 
 	if flag.NArg() == 0 || flag.NArg()%2 != 0 {
@@ -78,13 +85,41 @@ func main2() int {
 		keyLog = w
 	}
 
-	tls := tls.Config{
-		InsecureSkipVerify: true,
-		NextProtos:         []string{"doq"},
-		KeyLogWriter:       keyLog,
+	tlsConfig := tls.Config{
+		NextProtos:   []string{"doq"},
+		KeyLogWriter: keyLog,
 	}
+
+	// server certificate validation
+	if tlsCA == "" {
+		tlsConfig.InsecureSkipVerify = true
+	} else {
+		data, err := os.ReadFile(tlsCA)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to load CA certificate bundle: %s\n", err)
+			return 1
+		}
+		pool := x509.NewCertPool()
+		if ok := pool.AppendCertsFromPEM(data); !ok {
+			fmt.Fprintf(os.Stderr, "failed to load CA certificate bundle: no certificate found\n")
+			return 1
+		}
+		tlsConfig.RootCAs = pool
+	}
+
+	// client certificate
+	if tlsCert != "" && tlsKey != "" {
+		cert, err := tls.LoadX509KeyPair(tlsCert, tlsKey)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "failed to load TLS certificate: %s\n", err)
+			return 1
+		}
+
+		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	session, err := quic.DialAddr(ctx, server, &tls, nil)
+	session, err := quic.DialAddr(ctx, server, &tlsConfig, nil)
 	cancel()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to connect to the server: %s\n", err)
