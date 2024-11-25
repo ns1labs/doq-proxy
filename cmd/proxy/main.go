@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/miekg/dns"
 	"github.com/oklog/run"
 	"github.com/quic-go/quic-go"
