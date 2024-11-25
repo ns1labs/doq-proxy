@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/binary"
 	"errors"
 	"flag"
@@ -64,16 +65,18 @@ func main() {
 
 func loop(l log.Logger, ctx context.Context) error {
 	var (
-		addr    string
-		tlsCert string
-		tlsKey  string
-		backend string
+		addr        string
+		tlsCert     string
+		tlsKey      string
+		backend     string
+		mtlsCACerts string
 	)
 
 	flag.StringVar(&addr, "listen", "127.0.0.1:853", "UDP address to listen on.")
-	flag.StringVar(&tlsCert, "cert", "cert.pem", "TLS certificate path.")
-	flag.StringVar(&tlsKey, "key", "key.pem", "TLS key path.")
+	flag.StringVar(&tlsCert, "cert", "server.crt", "Path to server TLS certificate.")
+	flag.StringVar(&tlsKey, "key", "server.key", "Path to server TLS key.")
 	flag.StringVar(&backend, "backend", "8.8.4.4:53", "IP of backend server.")
+	flag.StringVar(&mtlsCACerts, "mtls_ca_certs", "", "Path to CA bundle for mTLS.")
 
 	flag.Parse()
 
@@ -82,12 +85,27 @@ func loop(l log.Logger, ctx context.Context) error {
 		return fmt.Errorf("load certificate: %w", err)
 	}
 
-	tls := tls.Config{
+	tlsConfig := tls.Config{
 		Certificates: []tls.Certificate{cert},
 		NextProtos:   []string{"doq"},
 	}
 
-	listener, err := quic.ListenAddr(addr, &tls, nil)
+	if mtlsCACerts != "" {
+		pems, err := os.ReadFile(mtlsCACerts)
+		if err != nil {
+			return fmt.Errorf("load mTLS CA certificates: %w", err)
+		}
+		pool := x509.NewCertPool()
+		if ok := pool.AppendCertsFromPEM(pems); !ok {
+			return fmt.Errorf("load mTLS CA certificates: found no certificate")
+		}
+
+		tlsConfig.ClientCAs = pool
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+
+	}
+
+	listener, err := quic.ListenAddr(addr, &tlsConfig, nil)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
 	}
@@ -105,6 +123,12 @@ func loop(l log.Logger, ctx context.Context) error {
 		}
 
 		l := log.With(l, "client", session.RemoteAddr())
+
+		certs := session.ConnectionState().TLS.PeerCertificates
+		if len(certs) > 0 {
+			l = log.With(l, "client_cert_subject", certs[0].Subject)
+		}
+
 		wg.Add(1)
 		go func() {
 			handleClient(l, ctx, session, backend)
