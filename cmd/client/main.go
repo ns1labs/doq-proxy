@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
@@ -31,6 +32,7 @@ func main2() int {
 		recursion bool
 		keysPath  string
 		queries   []Query
+		timeout   time.Duration
 	)
 
 	flag.Usage = func() {
@@ -42,6 +44,7 @@ func main2() int {
 	flag.BoolVar(&dnssec, "dnssec", true, "Send DNSSEC OK flag.")
 	flag.BoolVar(&recursion, "recursion", true, "Send RD flag.")
 	flag.StringVar(&keysPath, "export_keys_path", "", "File name to export session keys for decryption.")
+	flag.DurationVar(&timeout, "timeout", 3*time.Second, "Connection timeout.")
 	flag.Parse()
 
 	if flag.NArg() == 0 || flag.NArg()%2 != 0 {
@@ -80,12 +83,14 @@ func main2() int {
 		NextProtos:         []string{"doq"},
 		KeyLogWriter:       keyLog,
 	}
-	session, err := quic.DialAddr(server, &tls, nil)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	session, err := quic.DialAddr(ctx, server, &tls, nil)
+	cancel()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to connect to the server: %s\n", err)
 		return 1
 	}
-	defer session.CloseWithError(0, "") // TODO: Is this how the session should be closed?
+	defer session.CloseWithError(0, "")
 
 	print := make(chan string)
 
