@@ -29,8 +29,8 @@ go build ./cmd/client
 Generate testing key and self-signed certificate for the proxy server.
 
 ```
-openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out key.pem
-openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" -key key.pem -out cert.pem
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out server.key
+openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" -key server.key -out server.crt
 ```
 
 Start the proxy. By default, the server loads the TLS key and certificate from
@@ -83,6 +83,42 @@ ns1.com.	25	IN	RRSIG	A 13 2 26 20190325121645 20190323121645 44688 ns1.com. xJK5
 
 ;; OPT PSEUDOSECTION:
 ; EDNS: version 0; flags: do; udp: 512
+```
+
+## Client TLS certificate authentication (mTLS)
+
+The proxy server supports client certificate auhentication. In order to enable the feature,
+provide CA certificate bundle in PEM format as a proxy parameter `-mtls_ca_certs`.
+
+Generate a testing CA certificate:
+
+```
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out ca.key
+openssl req -x509 -days 30 -subj "/CN=DNS-over-QUIC Test CA" -addext "basicConstraints=critical,CA:true,pathlen:0" -key ca.key -out ca.crt
+```
+
+Generate server and client certificates and sign them with the CA certificate:
+
+```
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out server.key
+openssl req -x509 -CA ca.crt -CAkey ca.key -days 30 -subj "/CN=server" -addext "subjectAltName=DNS:localhost,IP:127.0.0.1,IP:::1" -key server.key -out server.crt
+```
+
+```
+openssl genpkey -algorithm EC -pkeyopt ec_paramgen_curve:P-256 -pkeyopt ec_param_enc:named_curve -out client.key
+openssl req -x509 -CA ca.crt -CAkey ca.key -days 30 -subj "/CN=client" -key client.key -out client.crt
+```
+
+Run the proxy and enable mTLS by providing the CA certificate as a CA bundle:
+
+```
+./proxy -mtls_ca_certs ca.crt
+```
+
+Run the query with providing client certificates. The CA bundle enables server certificate validation:
+
+```
+./client -ca_certs ca.crt -cert client.crt -key client.key ns1.com. AAAA
 ```
 
 ## Troubleshooting
